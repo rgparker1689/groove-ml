@@ -1,17 +1,14 @@
 from comet_ml import Experiment
+import tensorflow
 import numpy as np
 import pandas as pd
 import librosa.display
 import matplotlib.pyplot as plt
 import scipy.stats
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.model_selection import train_test_split
 import tensorflow.keras as tf
-from tensorflow.keras.layers import *
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.python.framework.ops import disable_eager_execution
-import keras
 from pathlib import Path
 
 disable_eager_execution()
@@ -110,10 +107,44 @@ for label in labels:
         features.append([local_ac, global_ac, label])
 featuresdf = pd.DataFrame(features, columns=['local', 'global', 'label'])
 
-x1 = np.mean(featuresdf['local'].tolist(), axis=1) # averaging local autocorrelations for each audio file to match shape of global
+# preprocessing
+x1 = np.mean(featuresdf['local'].tolist(), axis=1)  # averaging local acs for each audio file to match shape of global
 x2 = np.array(featuresdf['global'].tolist()) # reformatting global array into manageable shape ^
 y = featuresdf['label'].tolist()
 le = LabelEncoder()
 yy = tf.utils.to_categorical(le.fit_transform(y))
 np.savetxt("x1.csv", x1, delimiter=",")
-np.savetxt("x2.csv", x2, delimiter=",", fmt='%s')
+np.savetxt("x2.csv", x2, delimiter=",")
+scaler = MinMaxScaler(feature_range= (0, 1))
+x1 = scaler.fit_transform(x1)
+x2 = scaler.fit_transform(x2)
+np.savetxt("x1fitted.csv", x1, delimiter=",")
+np.savetxt("x2fitted.csv", x2, delimiter=",", fmt='%s')
+
+# setting up training/testing sets
+batch_size = 5
+x1_train, x1_test, x2_train, x2_test, y_train, y_test = train_test_split(x1, x2, yy, test_size=0.33, random_state=42)
+np.savetxt("x1train.csv", x1_train, delimiter=",")
+np.savetxt("x2train.csv", x2_train, delimiter=",")
+np.savetxt("x1test.csv", x1_test, delimiter=",")
+np.savetxt("x2test.csv", x2_test, delimiter=",")
+np.savetxt("ytrain.csv", y_train, delimiter=",")
+np.savetxt("ytest.csv", y_test, delimiter=",")
+
+# Working on model here
+input_shape = (259, 1)  # 259 timesteps, 1 feature at each step (batch sized sequences left out until fit call?)
+lstm = tf.layers.LSTM(4)
+input1 = tf.Input(shape=(259, 1))  # local ac
+x1 = input1
+input2 = tf.Input(shape=(259, 1))  # global ac
+x2 = input2
+x1 = lstm(x1)
+x2 = lstm(x2)
+merged = tf.layers.Concatenate(axis=1)([x1, x2])  # concatenating dim 4 lstm outputs
+prediction = tf.layers.Dense(8, activation='relu')(merged)
+prediction = tf.layers.Dense(1, activation='sigmoid')(prediction)  # final prediction output 0-1
+model = tf.Model(
+    inputs=[input1, input2],
+    outputs=[prediction],
+)
+model.summary()
