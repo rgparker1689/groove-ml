@@ -105,7 +105,6 @@ features = []
 for label in labels:
     for i in audiowavs[label]:
         local_ac, global_ac = gather_autocor(i, 256)
-        print(global_ac)
         features.append([local_ac, global_ac, label])
 featuresdf = pd.DataFrame(features, columns=['local', 'global', 'label'])
 
