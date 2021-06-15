@@ -12,6 +12,7 @@ from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.python.framework.ops import disable_eager_execution
 import keras
+from pathlib import Path
 
 disable_eager_execution()
 
@@ -22,8 +23,9 @@ experiment = Experiment(
     workspace="rgparker1689",
 )
 
-# reads audio spreadsheet into dataframe and creates dict mapping labels to series with their files
-names = pd.read_csv('audiowavs - Sheet1.csv')
+# reads audio spreadsheet into dataframe and creates dict mapping labels to series with their files\
+audio_folder = Path("C:/Users/rgpar/PycharmProjects/groove_mlAW/audios/")
+names = pd.read_csv('audiowavs.csv')
 labels = list(names.columns)
 audiowavs = dict()
 for i in labels:
@@ -37,9 +39,9 @@ wvfrms.subplots_adjust(hspace=0.4, wspace=0.4)
 index_counter = 0  # prevents overlap on png
 for i, label in enumerate(labels):
     for j in range(audiowavs[label].size):
-        func = audiowavs[label].loc[j]
+        func = audio_folder / audiowavs[label].loc[j]
         wvfrms.add_subplot(10, 2, index_counter + 1)
-        plt.title(label + ": " + func[50:])
+        plt.title(label + ": " + func.stem)
         y, sample_rate = librosa.load(func)
         librosa.display.waveplot(y, sr=sample_rate)
         index_counter += 1
@@ -48,14 +50,14 @@ plt.savefig('waveforms.png')
 experiment.log_image('waveforms.png')
 
 # outputs tempogram/bpm estimate graphs to comet
-prior = scipy.stats.uniform(30, 300) # ASSUMES BPM IN 30,300
+prior = scipy.stats.uniform(30, 300)  # ASSUMES BPM IN 30,300
 tmpgrms = plt.figure(figsize=(15, 15))
 experiment.log_image('tempograms.png')
 tmpgrms.subplots_adjust(hspace=1.4, wspace=0.4)
 index_counter = 0
 for i, label in enumerate(labels):
     for j in range(audiowavs[label].size):
-        func = audiowavs[label].loc[j]
+        func = audio_folder / audiowavs[label].loc[j]
         tmpgrms.add_subplot(10, 2, index_counter + 1)
         y, sample_rate = librosa.load(func)
         hop = 256
@@ -63,7 +65,7 @@ for i, label in enumerate(labels):
         tempogram = librosa.feature.tempogram(y=y, onset_envelope=oenv, sr=sample_rate, hop_length=hop)
         tempo_estimate = librosa.beat.tempo(y=y, onset_envelope=oenv, sr=sample_rate, prior=prior)
         librosa.display.specshow(data=tempogram, sr=sample_rate, hop_length=hop, x_axis='time', y_axis='tempo')
-        plt.title(label + ": " + str(tempo_estimate) + " " + func[50:])
+        plt.title(label + ": " + str(tempo_estimate) + " " + func.stem)
         index_counter += 1
 plt.savefig('tempograms.png')
 experiment.log_image('tempograms.png')
@@ -75,14 +77,14 @@ acrlts.subplots_adjust(hspace=1.4, wspace=0.4)
 index_counter = 0
 for i, label in enumerate(labels):
     for j in range(audiowavs[label].size):
-        func = audiowavs[label].loc[j]
+        func = audio_folder / audiowavs[label].loc[j]
         acrlts.add_subplot(10, 2, index_counter + 1)
         y, sample_rate = librosa.load(func)
         hop = 512
         oenv = librosa.onset.onset_strength(y=y, sr=sample_rate, hop_length=hop)
         ac = librosa.autocorrelate(oenv, max_size=4 * sample_rate / 512)
         plt.plot(ac)
-        plt.title(label + ": autocorrelation " + func[50:])
+        plt.title(label + ": autocorrelation " + func.stem)
         plt.xlabel('Lag (frames)')
         index_counter += 1
 plt.savefig('autocorrelations.png')
@@ -104,7 +106,7 @@ def gather_autocor(path, hop):
 features = []
 for label in labels:
     for i in audiowavs[label]:
-        local_ac, global_ac = gather_autocor(i, 256)
+        local_ac, global_ac = gather_autocor(audio_folder / i, 256)
         features.append([local_ac, global_ac, label])
 featuresdf = pd.DataFrame(features, columns=['local', 'global', 'label'])
 
@@ -115,11 +117,3 @@ le = LabelEncoder()
 yy = tf.utils.to_categorical(le.fit_transform(y))
 np.savetxt("x1.csv", x1, delimiter=",")
 np.savetxt("x2.csv", x2, delimiter=",", fmt='%s')
-
-
-
-
-
-
-
-
