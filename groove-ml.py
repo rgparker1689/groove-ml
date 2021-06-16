@@ -1,4 +1,5 @@
 from comet_ml import Experiment
+import keras.losses
 import tensorflow
 import numpy as np
 import pandas as pd
@@ -10,8 +11,6 @@ from sklearn.model_selection import train_test_split
 import tensorflow.keras as tf
 from tensorflow.python.framework.ops import disable_eager_execution
 from pathlib import Path
-
-disable_eager_execution()
 
 # comet_ml tracking wrapper
 experiment = Experiment(
@@ -109,10 +108,10 @@ featuresdf = pd.DataFrame(features, columns=['local', 'global', 'label'])
 
 # preprocessing
 x1 = np.mean(featuresdf['local'].tolist(), axis=1)  # averaging local acs for each audio file to match shape of global
-x2 = np.array(featuresdf['global'].tolist()) # reformatting global array into manageable shape ^
+x2 = np.array(featuresdf['global'].tolist())  # reformatting global array into manageable shape ^
 y = featuresdf['label'].tolist()
 le = LabelEncoder()
-yy = tf.utils.to_categorical(le.fit_transform(y))
+yy = tf.utils.to_categorical(le.fit_transform(y))  # encoding true predictions into binary form
 np.savetxt("x1.csv", x1, delimiter=",")
 np.savetxt("x2.csv", x2, delimiter=",")
 scaler = MinMaxScaler(feature_range= (0, 1))
@@ -130,10 +129,14 @@ np.savetxt("x1test.csv", x1_test, delimiter=",")
 np.savetxt("x2test.csv", x2_test, delimiter=",")
 np.savetxt("ytrain.csv", y_train, delimiter=",")
 np.savetxt("ytest.csv", y_test, delimiter=",")
+x1_train = x1_train.reshape((x1_train.shape[0], 259, 1))
+x1_test = x1_test.reshape((x1_test.shape[0], 259, 1))
+x2_train = x2_train.reshape((x2_train.shape[0], 259, 1))
+x2_test = x2_test.reshape((x2_test.shape[0], 259, 1))
 
 # Working on model here
 input_shape = (259, 1)  # 259 timesteps, 1 feature at each step (batch sized sequences left out until fit call?)
-lstm = tf.layers.LSTM(4)
+lstm = tf.layers.LSTM(4, input_shape=(259, 1))
 input1 = tf.Input(shape=(259, 1))  # local ac
 x1 = input1
 input2 = tf.Input(shape=(259, 1))  # global ac
@@ -142,9 +145,58 @@ x1 = lstm(x1)
 x2 = lstm(x2)
 merged = tf.layers.Concatenate(axis=1)([x1, x2])  # concatenating dim 4 lstm outputs
 prediction = tf.layers.Dense(8, activation='relu')(merged)
-prediction = tf.layers.Dense(1, activation='sigmoid')(prediction)  # final prediction output 0-1
+prediction = tf.layers.Dense(2, activation='sigmoid')(prediction)  # final prediction output 0-1
 model = tf.Model(
     inputs=[input1, input2],
     outputs=[prediction],
 )
+
+# saving some data
 model.summary()
+experiment.log_image('modelvis.png')
+tf.utils.plot_model(model, 'modelvis.png')
+experiment.log_image('modelvis.png')
+
+# compiling
+model.compile(
+    loss='binary_crossentropy',
+    optimizer='Adam',
+    metrics=[tf.metrics.BinaryAccuracy(name='binary_accuracy', threshold=0.5)],
+)
+
+# pre-training:
+print("pre-training:",)
+scores = model.evaluate(
+    x=[x1_test, x2_test],
+    y=[y_test],
+    batch_size=2,
+    verbose=1,
+)
+print("Test loss:", scores[0])
+print("Test accuracy:", scores[1])
+
+# training
+history = model.fit(
+    x=[x1_train, x2_train],
+    y=[y_train],
+    validation_data=([x1_test, x2_test], [y_test]),
+    batch_size=2,
+    epochs=100,
+    verbose=1,
+    shuffle=True,
+)
+print("history:",)
+print(history.history)
+# re-evaluating:
+print("post-training:",)
+scores = model.evaluate(
+    x=[x1_test, x2_test],
+    y=[y_test],
+    batch_size=2,
+    verbose=1,
+)
+print("Test loss:", scores[0])
+print("Test accuracy:", scores[1])
+
+print(model.predict(x=[x1_train, x2_train], verbose=1))
+print(y_train)
