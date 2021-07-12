@@ -1,3 +1,7 @@
+# This model found moderate success, but seems to have struggled with overfitting-
+# (probably due to a lack of data and/or too large of a hop length when extracting features from audio)
+# However, autocorrelation does show some promise, model that follows this one similarly uses self-recurrence matrices formed from onset envelopes
+
 from comet_ml import Experiment
 import keras.losses
 import tensorflow
