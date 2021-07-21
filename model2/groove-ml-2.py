@@ -14,6 +14,11 @@ from pathlib import Path
 from data_aug import *
 from data_preprocessing import *
 
+experiment = Experiment(
+    api_key='F9dUYytBwvR290XYycBVCeJ5T',
+    project_name='grooveml-model2',
+    workspace='rgparker1689'
+)
 
 audio_folder = Path("/Users/rileyparker/PycharmProjects/grooveML/audios/")
 names = pd.read_csv('audiowavstemp.csv')
@@ -36,7 +41,7 @@ for label in audiowavs:
             # reusable variables
             print('operating on: ' + (audio_folder / j[2]).stem)
             temp = audio_folder / j[2]
-            hoplength = 2048
+            hoplength = 512
 
             onset_lowhop = librosa.onset.onset_strength(y=j[0], sr=j[1], hop_length=64)
             onset = librosa.onset.onset_strength(y=j[0], sr=j[1], hop_length=hoplength)
@@ -92,6 +97,8 @@ for label in audiowavs:
             # gathering other features
             flatness = librosa.feature.spectral_flatness(y=j[0])
             flatness_mat = librosa.segment.recurrence_matrix(data=flatness, mode='affinity', self=False, width=5)
+            flatmat_smoothed = librosa.segment.path_enhance(R=flatness_mat, n=51, window='hann', n_filters=7,
+                                                           zero_mean=True)
             zerox_rate = librosa.feature.zero_crossing_rate(y=onset, frame_length=220500, hop_length=512)
             num_zerox = zerox_rate[0, zerox_rate.shape[1] - 1] * zerox_rate.shape[1]
             print("flatness complete")
@@ -100,14 +107,51 @@ for label in audiowavs:
             fig3 = plt.figure()
             ax2 = fig3.add_subplot()
             plt.sca(ax2)
-            imgfla = librosa.display.specshow(flatness_mat, x_axis='s', y_axis='s',
+            imgfla = librosa.display.specshow(flatmat_smoothed, x_axis='s', y_axis='s',
                                               hop_length=hoplength, cmap='magma_r', ax=ax2)
             fig3.colorbar(imgfla, ax=ax2, orientation='horizontal')
             plt.savefig(temp.stem + '_flatness.png')
             plt.close(fig3)
 
             # appending data
-            data.append([onset_lowhop, self_recmat, affmat_smoothed, flatness_mat, label])
+            data.append([onset_lowhop, self_recmat, affmat_smoothed, flatmat_smoothed, label])
 
 data_df = pd.DataFrame(data, columns=['onset', 'recurrence', 'affinity', 'flatness', 'label'])
 train, test = preprocess(data_df, bsize=2)
+
+batch_size = 5
+affmat_size = train[2][0].shape[0]
+print(affmat_size)
+flatmat_size = train[3][0].shape[0]
+print(flatmat_size)
+
+# Model design
+input1 = tf.layers.Input(shape=(affmat_size, affmat_size, 1))
+input2 = tf.layers.Input(shape=(flatmat_size, flatmat_size, 1))
+conv_affmat = tf.layers.Conv2D(8, 3, data_format='channels_last',
+                               input_shape=(affmat_size, affmat_size, 1),
+                               activation='relu')
+conv_flatmat = tf.layers.Conv2D(8, 3, data_format='channels_last',
+                                input_shape=(flatmat_size, flatmat_size, 1),
+                                activation='relu')
+
+x1 = conv_affmat(input1)
+x2 = conv_flatmat(input2)
+x1_pooled = tf.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2))(x1)
+x2_pooled = tf.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2))(x2)
+x1_dropped = tf.layers.Dropout(.1)(x1_pooled)
+x2_dropped = tf.layers.Dropout(.1)(x2_pooled)
+merged = tf.layers.Concatenate(axis=1)([x1_dropped, x2_dropped])
+merged_conv = tf.layers.Conv2D(2, 3, data_format='channels_last',
+                               input_shape=(350, 175, 8),
+                               activation='relu')(merged)
+predictions = tf.layers.Dense(2, activation='sigmoid')(merged_conv)
+
+model = tf.Model(
+    inputs=[input1, input2],
+    outputs=[predictions]
+)
+
+model.summary()
+
+
