@@ -21,7 +21,7 @@ experiment = Experiment(
 )
 
 audio_folder = Path("/Users/rileyparker/PycharmProjects/grooveML/audios/")
-names = pd.read_csv('audiowavstemp.csv')
+names = pd.read_csv('audiowavs.csv')
 labels = list(names.columns)
 audiowavs = dict()
 for i in labels:
@@ -142,10 +142,16 @@ x2_pooled = tf.layers.MaxPool2D(pool_size=(2, 2), strides=(2, 2))(x2)
 x1_dropped = tf.layers.Dropout(.1)(x1_pooled)
 x2_dropped = tf.layers.Dropout(.1)(x2_pooled)
 merged = tf.layers.Concatenate(axis=1)([x1_dropped, x2_dropped])
-merged_conv = tf.layers.Conv2D(2, 3, data_format='channels_last',
+conv2d_1 = tf.layers.Conv2D(2, 3, data_format='channels_last',
                                input_shape=(350, 175, 8),
                                activation='relu')(merged)
-predictions = tf.layers.Dense(2, activation='sigmoid')(merged_conv)
+maxpool_1 = tf.layers.MaxPool2D()(conv2d_1)
+flattened = tf.layers.Flatten()(maxpool_1)
+intermed = tf.layers.Dense(25, activation='tanh')(flattened)
+predictions = tf.layers.Dense(2, activation='sigmoid')(intermed)
+
+print(test[4])
+print(test[4].shape)
 
 model = tf.Model(
     inputs=[input1, input2],
@@ -154,4 +160,47 @@ model = tf.Model(
 
 model.summary()
 
+# compiling
+model.compile(
+    loss='binary_crossentropy',
+    optimizer='Adam',
+    metrics=[tf.metrics.BinaryAccuracy(name='binary_accuracy', threshold=0.5)],
+)
 
+# pre-training evaluation
+print("pre-training:",)
+scores=model.evaluate(
+    x=[test[2], test[3]],
+    y=[test[4]],
+    batch_size=batch_size,
+    verbose=1,
+)
+print("Test loss:", scores[0])
+print("Test accuracy:", scores[1])
+
+# training
+history = model.fit(
+    x=[train[2], train[3]],
+    y=[train[4]],
+    validation_data=([test[2], test[3]], test[4]),
+    batch_size=batch_size,
+    epochs=100,
+    verbose=1,
+    shuffle=True,
+)
+print("history:")
+print(history.history)
+
+print("post-training:",)
+scores=model.evaluate(
+    x=[test[2], test[3]],
+    y=[test[4]],
+    batch_size=batch_size,
+    verbose=1,
+)
+print("Test loss:", scores[0])
+print("Test accuracy:", scores[1])
+
+
+print(model.predict(x=[train[2], train[3]], verbose=1))
+print(train[4])
