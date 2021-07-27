@@ -18,7 +18,6 @@ def separate(y, sr):
     hpl2 = hoplength
     peaks = librosa.util.peak_pick(onsets, hpl2, hpl2, hpl2, hpl2, .01, hpl2)
     times = librosa.times_like(onsets, sr=sr, hop_length=hoplength)
-    print(peaks)
 
     # plotting work
     fig1 = plt.figure()
@@ -48,6 +47,7 @@ def preprocess(y, sr, name='default'):
     onsets = librosa.onset.onset_strength(y=y, sr=sr, hop_length=16)
     onsets -= 4*np.average(onsets)
     onsets[onsets < 0] = 0
+    max_index = np.argmax(onsets) * 16
     nonzero = False
     back_to_zero = False
     mult_peaks = False
@@ -63,24 +63,60 @@ def preprocess(y, sr, name='default'):
         else:
             if i != 0:
                 nonzero = True
-    onsets = onsets
+
+    # either crop or elongate to normalize
+    if y.shape[0] >= 3000:
+        if max_index >= 1499:
+            if y.shape[0] - max_index <= 1500:
+                end_index = y.shape[0] - 1
+                start_index = max_index - (1500 + (1501 - (y.shape[0] - max_index)))
+            else:
+                start_index = max_index - 1500
+                end_index = max_index + 1500
+        else:
+            start_index = 0
+            end_index = max_index + (3000 - max_index)
+    else:
+        if max_index <= 1500:
+            start_index = 0
+            y = np.append(np.zeros(1500-max_index), y)
+            max_index += (1500 - max_index)
+        else:
+            start_index = max_index - 1500
+        if y.shape[0] - max_index <= 1500:
+            y = np.append(y, np.zeros(1500 - (y.shape[0] - max_index)))
+            end_index = y.shape[0]
+        else:
+            end_index = max_index + 1500
+        print("start and end indices: ")
+        print(start_index, end_index)
+    bounds = np.array([start_index, end_index])
+
+    # plotting
     times = librosa.times_like(onsets, sr=sr, hop_length=10)
     fig1 = plt.figure()
     ax1 = fig1.add_subplot()
     plt.sca(ax1)
     ax1.plot(times, onsets, label="Onset Strength", alpha=0.6)
+    onset_max = int(max_index/16)
+    onset_bounds = (bounds/16).astype(int)
+    ax1.vlines(times[onset_max], 0, onsets.max(), color='r', alpha=0.7)
+    ax1.vlines(times[onset_bounds], 0, onsets.max(), color='green', alpha=0.7)
     if mult_peaks:
-        plt.savefig(name+'.png')
-        return True
+        plt.savefig(name + '.png')
+        plt.close(fig1)
+        return True, y
     plt.close(fig1)
-    return False
+    y = y[start_index:end_index]
+    print(y.shape[0])
+    return False, y
 
 
-y, sr = librosa.load("audios/1_2rc100.wav")
+y, sr = librosa.load("audios/1_4a120.wav")
 temp_hits = separate(y, sr)
 total_wrong = 0
 for i in temp_hits:
-    mult_peaks = preprocess(i, sr, str(total_wrong))
+    mult_peaks, y = preprocess(i, sr, str(total_wrong))
     if mult_peaks:
         total_wrong += 1
 print(str(total_wrong) + '/' + str(len(temp_hits)))
