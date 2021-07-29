@@ -1,4 +1,4 @@
-# groove-ml
+# groove-id
 A machine learning model to predict whether a supplied drum groove/loop/audio file is programmed (i.e. MIDI/Drum Machines) or performed.
 
 A number of audio features have been tested. Began with tempograms and fourier tempograms, but found very little success with well performed drum parts.
