@@ -1,4 +1,4 @@
-# hit-id
+# Hit ID
 A machine learning model to predict whether a supplied drum or cymbal audio file/sample
 (in the form of a .wav file) is a drum or cymbal, and which type of drum or cymbal it is. 
 
