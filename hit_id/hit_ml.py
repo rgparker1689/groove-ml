@@ -10,12 +10,12 @@ from data_preprocessing import sample_preprocess
 
 # temp source while gathering data for training
 # hits = hs.get_hits("audios/1_1a120.wav")[0]
-dump = False
+dump = True
 audio_folder = Path("/Users/rileyparker/PycharmProjects/grooveML/training/")
 paths = pd.read_csv('hit_id_training.csv')
 paths.fillna('', inplace=True)
 labels = list(paths.columns)
-data = pd.DataFrame(columns=['Class', 'MFCC', 'SpecBW'])
+data = pd.DataFrame(columns=['Class', 'MFCC', 'SpecBW', 'SpecFL'])
 for i in labels:
     for j in paths[i]:
         if j == '':
@@ -55,7 +55,18 @@ for i in labels:
             plt.savefig('imgs/spec_bandwidth: ' + j + '.png')
             plt.close(fig)
 
-        data.loc[len(data.index)] = [i, mel_spec, spec_bw]
+        # Spectral Flatness- Trial
+        spec_flatness = librosa.feature.spectral_flatness(y=y, hop_length=128)
+        times = librosa.times_like(spec_flatness)
+        if dump:
+            fig, ax = plt.subplots(nrows=1)
+            ax.semilogy(times, spec_flatness[0], label='spectral flatness')
+            ax.set(xticks=[], xlim=[times.min(), times.max()])
+            ax.legend()
+            ax.label_outer
+            plt.savefig('imgs/spec_flatness ' + j + '.png')
+            plt.close(fig)
 
-print(data['MFCC'][0].shape, data['SpecBW'][0].shape)
+        data.loc[len(data.index)] = [i, mel_spec, spec_bw, spec_flatness]
+
 sample_preprocess(data, 5)

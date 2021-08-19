@@ -29,16 +29,30 @@ def groove_preprocess(df, bsize):
     for i in x4:
         scaler.fit_transform(i)
 
-    x1_train, x1_test, x2_train, x2_test, x3_train, x3_test, x4_train, x4_test, y_train, y_test = train_test_split(x1, x2, x3, x4, yy, test_size=0.33, random_state = 42)
+    x1_train, x1_test, x2_train, x2_test, x3_train, x3_test, x4_train, x4_test, y_train, y_test = train_test_split(x1, x2, x3, x4, yy, test_size=0.33, random_state=42)
     train = [x1_train, x2_train, x3_train, x4_train, y_train]
     test = [x1_test, x2_test, x3_test, x4_test, y_test]
     return train, test
 
 def sample_preprocess(df, bsize):
-    labels = df['Class'].to_numpy()
-    mels = df['MFCC'].to_numpy()
-    bandw = df['SpecBW'].to_numpy()
 
+    # separating into ndarrays
+    labels = df['Class'].to_numpy()
+    mels = np.array(df['MFCC'].tolist())
+    bandw = np.array(df['SpecBW'].tolist())
+    flatn = np.array(df['SpecFL'].tolist())
+
+    # min/max scaling (0, 1)
+    mels /= np.amax(mels)
+    bandw /= np.amax(bandw)
+    flatn /= np.amax(flatn)
+
+    # ordinal encoding for classes
     enc = LabelEncoder()
     labels = enc.fit_transform(labels)
     scaler = MinMaxScaler()
+
+    x1_train, x1_test, x2_train, x2_test, x3_train, x3_test, y_train, y_test = train_test_split(mels, bandw, flatn, labels, test_size=0.33, random_state=42)
+    train = [x1_train, x2_train, x3_train, y_train]
+    test = [x1_test, x2_test, x3_test, y_test]
+    return train, test
