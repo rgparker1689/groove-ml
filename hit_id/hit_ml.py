@@ -6,10 +6,11 @@ import librosa.display
 import tensorflow as tf
 import hit_separator as hs
 from pathlib import Path
+from data_preprocessing import sample_preprocess
 
 # temp source while gathering data for training
 # hits = hs.get_hits("audios/1_1a120.wav")[0]
-dump = True
+dump = False
 audio_folder = Path("/Users/rileyparker/PycharmProjects/grooveML/training/")
 paths = pd.read_csv('hit_id_training.csv')
 paths.fillna('', inplace=True)
@@ -17,7 +18,6 @@ labels = list(paths.columns)
 data = pd.DataFrame(columns=['Class', 'MFCC', 'SpecBW'])
 for i in labels:
     for j in paths[i]:
-        print(j)
         if j == '':
             continue
         path = audio_folder/j
@@ -44,7 +44,7 @@ for i in labels:
             plt.close(fig)
 
         # Spectral Bandwidth- Looks like it may be the key to deciding whether or not a cymbal is also present
-        spec_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+        spec_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr, hop_length=128)
         times = librosa.times_like(spec_bw)
         if dump:
             fig, ax = plt.subplots(nrows=1)
@@ -58,3 +58,4 @@ for i in labels:
         data.loc[len(data.index)] = [i, mel_spec, spec_bw]
 
 print(data['MFCC'][0].shape, data['SpecBW'][0].shape)
+sample_preprocess(data, 5)
