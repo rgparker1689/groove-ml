@@ -117,7 +117,7 @@ for label in audiowavs:
             data.append([onset_lowhop, self_recmat, affmat_smoothed, flatmat_smoothed, label])
 
 data_df = pd.DataFrame(data, columns=['onset', 'recurrence', 'affinity', 'flatness', 'label'])
-train, test = preprocess(data_df, bsize=2)
+train, test = groove_preprocess(data_df, bsize=2)
 
 batch_size = 5
 affmat_size = train[2][0].shape[0]

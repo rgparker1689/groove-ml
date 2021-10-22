@@ -3,6 +3,8 @@ import librosa
 import librosa.display
 import soundfile
 import matplotlib.pyplot as plt
+from hit_ml import random_classify, assemble
+import groove_graphing.groove_grapher
 
 
 # separates time series into list of segments representing hits
@@ -108,8 +110,8 @@ def preprocess(y, sr, name='default', width=3000, dump=False):
 
     # if multiple peaks detected, log an image for debug
     if mult_peaks or dump:
-        plt.savefig('imgs/' + name + '.png')
-        soundfile.write('outputs/' + name + '.wav', y, sr)
+        plt.savefig('/Users/rileyparker/PycharmProjects/grooveML/imgs/' + name + '.png')
+        soundfile.write('/Users/rileyparker/PycharmProjects/grooveML/outputs/' + name + '.wav', y, sr)
     plt.close(fig1)
     if y.shape[0] != width:
         print(y.shape[0])
@@ -126,7 +128,7 @@ def get_hits(path):
 
     # creating list of separated hit time series
     for i in temp_hits:
-        mult_det, hit = preprocess(i, sr, str(mult_instances), width=3000, dump=True)
+        mult_det, hit = preprocess(i, sr, str(mult_instances), width=3000, dump=False)
         if mult_det:
             mult_peaks = True
             mult_instances += 1
@@ -140,6 +142,10 @@ def get_hits(path):
         print("All detected peaks successfully isolated!")
     return np.asarray(hits), indices
 
-hits2, idx = get_hits('audios/1_2rc110.wav')
-print(len(hits2))
-print(hits2[0].shape)
+
+if __name__ == '__main__':
+    path = '/Users/rileyparker/PycharmProjects/grooveML/audios/1_2rc110.wav'
+    hits2, idx = get_hits(path)
+    classes = random_classify(hits2)
+    groove_graphing.groove_grapher.graph(classes, idx, beat_path=path)
+    dummy = assemble(hits2)
